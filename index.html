@@ -149,6 +149,7 @@
   let currentQuestion = 0;
   const responses = new Array(questions.length).fill(null);
   let charts = [];
+  let stats = questions.map(() => ({correct: 0, incorrect: 0}));
 
   function showQuestion(index) {
     const questionContainer = document.getElementById('question-container');
@@ -190,6 +191,7 @@
     const resultDiv = document.getElementById('result');
     resultDiv.innerHTML = `<h2>Thank you for completing the quiz!</h2>`;
     saveResponses(responses);
+    updateStatistics(responses);
     showStatistics();
     document.getElementById('clear-data').style.display = 'block';
   }
@@ -198,41 +200,37 @@
     push(ref(database, 'responses'), responses);
   }
 
+  function updateStatistics(newResponses) {
+    newResponses.forEach((response, index) => {
+      if (response === 'correct') stats[index].correct++;
+      if (response === 'incorrect') stats[index].incorrect++;
+    });
+  }
+
   function showStatistics() {
-    onValue(ref(database, 'responses'), (snapshot) => {
-      const allResponses = snapshot.val() ? Object.values(snapshot.val()) : [];
-      const totalResponses = allResponses.length;
-      const stats = questions.map(() => ({correct: 0, incorrect: 0}));
-
-      allResponses.forEach(response => {
-        response.forEach((answer, index) => {
-          if (answer === 'correct') stats[index].correct++;
-          if (answer === 'incorrect') stats[index].incorrect++;
-        });
-      });
-
-      let statsHtml = `<h2>Overall Statistics (${totalResponses} responses)</h2>`;
-      stats.forEach((stat, index) => {
-        const total = stat.correct + stat.incorrect;
-        statsHtml += `
-          <div class="question-stat">
-            <h3>Question ${index + 1}:</h3>
-            <p>${questions[index]}</p>
-            <p>Correct: ${stat.correct} (${((stat.correct / total) * 100).toFixed(2)}%)</p>
-            <p>Incorrect: ${stat.incorrect} (${((stat.incorrect / total) * 100).toFixed(2)}%)</p>
-            <div class="chart-container">
-              <canvas id="chart-${index}"></canvas>
-            </div>
+    const totalResponses = stats.reduce((sum, stat) => sum + stat.correct + stat.incorrect, 0) / questions.length;
+    
+    let statsHtml = `<h2>Overall Statistics (${totalResponses} responses)</h2>`;
+    stats.forEach((stat, index) => {
+      const total = stat.correct + stat.incorrect;
+      statsHtml += `
+        <div class="question-stat">
+          <h3>Question ${index + 1}:</h3>
+          <p>${questions[index]}</p>
+          <p>Correct: ${stat.correct} (${((stat.correct / total) * 100).toFixed(2)}%)</p>
+          <p>Incorrect: ${stat.incorrect} (${((stat.incorrect / total) * 100).toFixed(2)}%)</p>
+          <div class="chart-container">
+            <canvas id="chart-${index}"></canvas>
           </div>
-        `;
-      });
+        </div>
+      `;
+    });
 
-      document.getElementById('statistics').innerHTML = statsHtml;
-      
-      // Create charts for each question
-      stats.forEach((stat, index) => {
-        createChart(stat, index);
-      });
+    document.getElementById('statistics').innerHTML = statsHtml;
+    
+    // Create charts for each question
+    stats.forEach((stat, index) => {
+      createChart(stat, index);
     });
   }
 
@@ -295,11 +293,36 @@
         if (chart) chart.destroy();
       });
       charts = [];
+      stats = questions.map(() => ({correct: 0, incorrect: 0}));
     }
   }
 
-  // Initialize the quiz
-  showQuestion(currentQuestion);
+  // Initialize the quiz and load existing data
+  function initializeQuiz() {
+    showQuestion(currentQuestion);
+    
+    // Load existing data
+    onValue(ref(database, 'responses'), (snapshot) => {
+      const allResponses = snapshot.val() ? Object.values(snapshot.val()) : [];
+      
+      // Reset stats
+      stats = questions.map(() => ({correct: 0, incorrect: 0}));
+      
+      // Update stats with existing data
+      allResponses.forEach(response => {
+        response.forEach((answer, index) => {
+          if (answer === 'correct') stats[index].correct++;
+          if (answer === 'incorrect') stats[index].incorrect++;
+        });
+      });
+      
+      // Show initial statistics
+      showStatistics();
+    });
+  }
+
+  // Call initializeQuiz instead of just showQuestion
+  initializeQuiz();
 </script>
 
 </body>

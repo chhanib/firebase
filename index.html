@@ -191,8 +191,6 @@
     const resultDiv = document.getElementById('result');
     resultDiv.innerHTML = `<h2>Thank you for completing the quiz!</h2>`;
     saveResponses(responses);
-    updateStatistics(responses);
-    showStatistics();
     document.getElementById('clear-data').style.display = 'block';
   }
 
@@ -200,10 +198,14 @@
     push(ref(database, 'responses'), responses);
   }
 
-  function updateStatistics(newResponses) {
-    newResponses.forEach((response, index) => {
-      if (response === 'correct') stats[index].correct++;
-      if (response === 'incorrect') stats[index].incorrect++;
+  function updateStatistics(allResponses) {
+    stats = questions.map(() => ({correct: 0, incorrect: 0}));
+    
+    allResponses.forEach(response => {
+      response.forEach((answer, index) => {
+        if (answer === 'correct') stats[index].correct++;
+        if (answer === 'incorrect') stats[index].incorrect++;
+      });
     });
   }
 
@@ -213,12 +215,14 @@
     let statsHtml = `<h2>Overall Statistics (${totalResponses} responses)</h2>`;
     stats.forEach((stat, index) => {
       const total = stat.correct + stat.incorrect;
+      const correctPercentage = total > 0 ? ((stat.correct / total) * 100).toFixed(2) : '0.00';
+      const incorrectPercentage = total > 0 ? ((stat.incorrect / total) * 100).toFixed(2) : '0.00';
       statsHtml += `
         <div class="question-stat">
           <h3>Question ${index + 1}:</h3>
           <p>${questions[index]}</p>
-          <p>Correct: ${stat.correct} (${((stat.correct / total) * 100).toFixed(2)}%)</p>
-          <p>Incorrect: ${stat.incorrect} (${((stat.incorrect / total) * 100).toFixed(2)}%)</p>
+          <p>Correct: ${stat.correct} (${correctPercentage}%)</p>
+          <p>Incorrect: ${stat.incorrect} (${incorrectPercentage}%)</p>
           <div class="chart-container">
             <canvas id="chart-${index}"></canvas>
           </div>
@@ -301,22 +305,14 @@
   function initializeQuiz() {
     showQuestion(currentQuestion);
     
-    // Load existing data
+    // Load existing data and listen for changes
     onValue(ref(database, 'responses'), (snapshot) => {
       const allResponses = snapshot.val() ? Object.values(snapshot.val()) : [];
       
-      // Reset stats
-      stats = questions.map(() => ({correct: 0, incorrect: 0}));
+      // Update stats with all responses
+      updateStatistics(allResponses);
       
-      // Update stats with existing data
-      allResponses.forEach(response => {
-        response.forEach((answer, index) => {
-          if (answer === 'correct') stats[index].correct++;
-          if (answer === 'incorrect') stats[index].incorrect++;
-        });
-      });
-      
-      // Show initial statistics
+      // Show updated statistics
       showStatistics();
     });
   }
